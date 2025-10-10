@@ -29,7 +29,7 @@ ChartJS.register(
 );
 
 const endpoint =
-  "https://script.google.com/macros/s/AKfycbzrdUDHWLn-dJjWOOtrwbnGovHJMLcJYS6EhWgEq6Yq1iN_v7S4Nh9z_quYZEF-6AKZPg/exec";
+  "https://script.google.com/macros/s/AKfycbxq2xHXlZdE6EAXIGD7aXhBPdZgLuGBgPXtQiLjzBWhd1gYCaroKQS7nUbXI9AnQpPK/exec";
 const SHEET_SEMESTER1 = "RekapSemester1";
 const SHEET_SEMESTER2 = "RekapSemester2";
 
@@ -3063,137 +3063,145 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
   const statusSummary = getStatusSummary();
 
   const downloadExcel = () => {
-    const headers = [
-      "No.",
-      "Nama",
-      "Kelas",
-      "Hadir",
-      "Alpha",
-      "Izin",
-      "Sakit",
-      "% Hadir",
-    ];
-    const data = [
-      headers,
-      ...filteredRecapData.map((item, index) => [
-        index + 1, // Nomor urut
-        item.nama || "N/A",
-        item.kelas || "N/A",
-        item.hadir || 0,
-        item.alpa || 0,
-        item.izin || 0,
-        item.sakit || 0,
-        item.persenHadir !== undefined ? `${item.persenHadir}%` : "N/A",
-      ]),
-      [
-        "",
-        "TOTAL",
-        "",
-        statusSummary.Hadir,
-        statusSummary.Alpha,
-        statusSummary.Izin,
-        statusSummary.Sakit,
-        "",
-      ],
-      [
-        "",
-        "PERSEN",
-        "",
-        `${(
-          (statusSummary.Hadir /
-            (statusSummary.Hadir +
-              statusSummary.Alpha +
-              statusSummary.Izin +
-              statusSummary.Sakit)) *
-          100
-        ).toFixed(2)}%`,
-        `${(
-          (statusSummary.Alpha /
-            (statusSummary.Hadir +
-              statusSummary.Alpha +
-              statusSummary.Izin +
-              statusSummary.Sakit)) *
-          100
-        ).toFixed(2)}%`,
-        `${(
-          (statusSummary.Izin /
-            (statusSummary.Hadir +
-              statusSummary.Alpha +
-              statusSummary.Izin +
-              statusSummary.Sakit)) *
-          100
-        ).toFixed(2)}%`,
-        `${(
-          (statusSummary.Sakit /
-            (statusSummary.Hadir +
-              statusSummary.Alpha +
-              statusSummary.Izin +
-              statusSummary.Sakit)) *
-          100
-        ).toFixed(2)}%`,
-        "",
-      ],
-    ];
+    try {
+      const headers = [
+        "No.",
+        "Nama",
+        "Kelas",
+        "Hadir",
+        "Alpha",
+        "Izin",
+        "Sakit",
+        "% Hadir",
+      ];
+      const data = [
+        headers,
+        ...filteredRecapData.map((item, index) => [
+          index + 1,
+          item.nama || "N/A",
+          item.kelas || "N/A",
+          item.hadir || 0,
+          item.alpa || 0,
+          item.izin || 0,
+          item.sakit || 0,
+          item.persenHadir !== undefined ? `${item.persenHadir}%` : "N/A",
+        ]),
+        [
+          "",
+          "TOTAL",
+          "",
+          statusSummary.Hadir,
+          statusSummary.Alpha,
+          statusSummary.Izin,
+          statusSummary.Sakit,
+          "",
+        ],
+        [
+          "",
+          "PERSEN",
+          "",
+          `${(
+            (statusSummary.Hadir /
+              (statusSummary.Hadir +
+                statusSummary.Alpha +
+                statusSummary.Izin +
+                statusSummary.Sakit)) *
+            100
+          ).toFixed(2)}%`,
+          `${(
+            (statusSummary.Alpha /
+              (statusSummary.Hadir +
+                statusSummary.Alpha +
+                statusSummary.Izin +
+                statusSummary.Sakit)) *
+            100
+          ).toFixed(2)}%`,
+          `${(
+            (statusSummary.Izin /
+              (statusSummary.Hadir +
+                statusSummary.Alpha +
+                statusSummary.Izin +
+                statusSummary.Sakit)) *
+            100
+          ).toFixed(2)}%`,
+          `${(
+            (statusSummary.Sakit /
+              (statusSummary.Hadir +
+                statusSummary.Alpha +
+                statusSummary.Izin +
+                statusSummary.Sakit)) *
+            100
+          ).toFixed(2)}%`,
+          "",
+        ],
+      ];
 
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    ws["!cols"] = [
-      { wch: 5 }, // Lebar kolom No. (sempit)
-      { wch: 25 }, // Nama
-      { wch: 10 }, // Kelas
-      { wch: 10 }, // Hadir
-      { wch: 10 }, // Alpha
-      { wch: 10 }, // Izin
-      { wch: 10 }, // Sakit
-      { wch: 10 }, // % Hadir
-    ];
-    const headerStyle = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "FFFF00" } },
-      alignment: { horizontal: "center" },
-    };
-    const totalStyle = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D3D3D3" } },
-      alignment: { horizontal: "center" },
-    };
-    const percentStyle = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D3D3D3" } },
-      alignment: { horizontal: "center" },
-    };
-    headers.forEach((header, index) => {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: index });
-      ws[cellAddress] = { ...ws[cellAddress], s: headerStyle };
-    });
-    const totalRow = filteredRecapData.length + 1;
-    ["A", "B", "C", "D", "E", "F", "G", "H"].forEach((col, idx) => {
-      const cellAddress = `${col}${totalRow}`;
-      ws[cellAddress] = { ...ws[cellAddress], s: totalStyle };
-    });
-    const percentRow = filteredRecapData.length + 2;
-    ["A", "B", "C", "D", "E", "F", "G", "H"].forEach((col, idx) => {
-      const cellAddress = `${col}${percentRow}`;
-      ws[cellAddress] = { ...ws[cellAddress], s: percentStyle };
-    });
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws["!cols"] = [
+        { wch: 5 },
+        { wch: 25 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 },
+      ];
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap Semester");
-    const date = new Date()
-      .toLocaleString("id-ID", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-      .replace(/ /g, "_")
-      .replace(/:/g, "-");
-    const fileName = `Rekap_Semester_${selectedSemester}_${selectedKelas}_${date}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Rekap Semester");
+
+      const date = new Date()
+        .toLocaleString("id-ID", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+        .replace(/ /g, "_")
+        .replace(/:/g, "-");
+      const fileName = `Rekap_Semester_${selectedSemester}_${selectedKelas}_${date}.xlsx`;
+
+      // Buat blob dari workbook
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // Cek apakah browser mendukung download langsung
+      if (window.navigator && (window.navigator as any).msSaveOrOpenBlob) {
+        // IE & Edge
+        (window.navigator as any).msSaveOrOpenBlob(blob, fileName);
+      } else {
+        // Browser modern & Mobile
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        link.style.display = "none";
+
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+      }
+
+      // Tampilkan notifikasi sukses
+      alert("✅ File Excel berhasil diunduh!");
+    } catch (error) {
+      console.error("Error saat download Excel:", error);
+      alert("❌ Gagal mengunduh file Excel. Silakan coba lagi.");
+    }
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
+    // Tambahkan async untuk await
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
@@ -3202,7 +3210,7 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
 
     doc.setFont("Times", "roman");
 
-    const title = `REKAP ABSENSI SISWA KELAS ${selectedKelas} SEMESTER ${selectedSemester} 2025`;
+    const title = `REKAP ABSENSI SISWA KELAS ${selectedKelas} ${selectedSemester.toUpperCase()} 2024`;
     doc.setFontSize(14);
     doc.setFont("Times", "bold");
     doc.text(title, pageWidth / 2, currentY, { align: "center" });
@@ -3239,6 +3247,7 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
       statusSummary.Sakit,
       "",
     ];
+
     const percentRow = [
       "",
       "PERSEN",
@@ -3313,11 +3322,11 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
         year: "numeric",
       });
       const placeDateText = `${placeName}, ${formattedDate}`;
-      const rightColumnX = pageWidth - margin - 50;
+      const rightColumnX = pageWidth - margin - 50; // Signature width is 50
       doc.text(placeDateText, rightColumnX + 25, currentY - 1, {
         align: "center",
       });
-      currentY += 5;
+      currentY += 5; // Keep close to "Guru Kelas"
 
       const principalText = [
         "Kepala Sekolah,",
@@ -3340,14 +3349,31 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
 
       // Principal signature and text
       if (schoolData.ttdKepsek) {
-        doc.addImage(
-          schoolData.ttdKepsek,
-          "PNG",
-          leftColumnX + 10,
-          currentY - 3,
-          signatureWidth,
-          signatureHeight
-        );
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 150; // Sesuaikan ukuran canvas (lebar lebih besar untuk tanda tangan panjang)
+          canvas.height = 50; // Sesuaikan ukuran canvas (tinggi cukup untuk garis tanda tangan)
+          const ctx = canvas.getContext("2d");
+          const v = await Canvg.from(ctx, schoolData.ttdKepsek); // schoolData.ttdKepsek adalah base64 SVG
+          v.start();
+          const pngData = canvas.toDataURL("image/png");
+          doc.addImage(
+            pngData,
+            "PNG",
+            leftColumnX + 10,
+            currentY - 3,
+            signatureWidth,
+            signatureHeight
+          ); // Sesuaikan posisi sesuai asli
+        } catch (error) {
+          console.error("Error rendering Kepsek signature:", error);
+          doc.setFontSize(10);
+          doc.text(
+            "Gagal render tanda tangan Kepala Sekolah.",
+            leftColumnX + 10,
+            currentY - 3 + 10
+          );
+        }
       }
 
       // Pisahkan "Kepala Sekolah" dengan posisi yang lebih tinggi
@@ -3394,14 +3420,31 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
 
       // Teacher signature and text
       if (schoolData.ttdGuru) {
-        doc.addImage(
-          schoolData.ttdGuru,
-          "PNG",
-          rightColumnX + 10,
-          currentY - 5,
-          signatureWidth,
-          signatureHeight
-        );
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 150; // Sesuaikan ukuran canvas
+          canvas.height = 50;
+          const ctx = canvas.getContext("2d");
+          const v = await Canvg.from(ctx, schoolData.ttdGuru); // schoolData.ttdGuru adalah base64 SVG
+          v.start();
+          const pngData = canvas.toDataURL("image/png");
+          doc.addImage(
+            pngData,
+            "PNG",
+            rightColumnX + 10,
+            currentY - 5,
+            signatureWidth,
+            signatureHeight
+          ); // Sesuaikan posisi sesuai asli
+        } catch (error) {
+          console.error("Error rendering Guru signature:", error);
+          doc.setFontSize(10);
+          doc.text(
+            "Gagal render tanda tangan Guru.",
+            rightColumnX + 10,
+            currentY - 5 + 10
+          );
+        }
       }
 
       // Pisahkan "Guru Kelas" dengan posisi yang lebih tinggi
@@ -3929,7 +3972,7 @@ const SplashScreen: React.FC = () => {
         className="w-52 h-70 mb-4 animate-pulse-custom" //Pengaturan ukuran logo
       />
       <p className="text-gray-800 text-lg font-semibold mt-6">
-        Roslina, S.Pd
+        Setiawan Utama Jaya, S.Pd
       </p>
     </div>
   );
