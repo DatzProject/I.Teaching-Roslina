@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Canvg } from "canvg"; // Install via npm install canvg
 import SignatureCanvas from "react-signature-canvas";
 import {
   Chart as ChartJS,
@@ -29,7 +28,7 @@ ChartJS.register(
 );
 
 const endpoint =
-  "https://script.google.com/macros/s/AKfycbzrdUDHWLn-dJjWOOtrwbnGovHJMLcJYS6EhWgEq6Yq1iN_v7S4Nh9z_quYZEF-6AKZPg/exec";
+  "https://script.google.com/macros/s/AKfycbySWQClCXJ8qEJSkZZOXgyxOsHzgIn2vUPX5M-ezO9q-wy9a9qTbNeQwpKo70EgI5cnwg/exec";
 const SHEET_SEMESTER1 = "RekapSemester1";
 const SHEET_SEMESTER2 = "RekapSemester2";
 
@@ -96,7 +95,6 @@ interface AttendanceHistory {
   kelas: string;
   nisn: string;
   status: AttendanceStatus;
-  duplikat: string;
 }
 
 interface SemesterRecap {
@@ -112,6 +110,12 @@ interface SemesterRecap {
 const formatDateDDMMYYYY = (isoDate: string): string => {
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;
+};
+
+type EditedRecord = {
+  date: string;
+  nisn: string;
+  status: AttendanceStatus | "";
 };
 
 const SchoolDataTab: React.FC<{
@@ -205,7 +209,7 @@ const SchoolDataTab: React.FC<{
   };
 
   const handleSaveKepsekSignature = () => {
-    const signature = kepsekSigCanvas.current?.toDataURL("image/svg+xml"); // Ubah ke SVG
+    const signature = kepsekSigCanvas.current?.toDataURL("image/png"); // Ubah ke SVG
     if (signature && !kepsekSigCanvas.current?.isEmpty()) {
       setTtdKepsek(signature);
       setIsKepsekSigning(false);
@@ -215,7 +219,7 @@ const SchoolDataTab: React.FC<{
   };
 
   const handleSaveGuruSignature = () => {
-    const signature = guruSigCanvas.current?.toDataURL("image/svg+xml"); // Ubah ke SVG
+    const signature = guruSigCanvas.current?.toDataURL("image/png");
     if (signature && !guruSigCanvas.current?.isEmpty()) {
       setTtdGuru(signature);
       setIsGuruSigning(false);
@@ -1410,6 +1414,36 @@ const AttendanceTab: React.FC<{
               </div>
             </div>
 
+            {isLoadingExistingData && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <svg
+                    className="animate-spin h-5 w-5 text-blue-600"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <span className="text-blue-700 font-semibold">
+                    ⏳ Mohon tunggu, sedang memuat data absensi...
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4 mb-6 overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -1455,13 +1489,15 @@ const AttendanceTab: React.FC<{
                                   onClick={() => setStatus(s.id, status)}
                                   style={{ width: "1cm" }}
                                   className={`px-1 py-0.5 rounded-lg text-xs font-medium transition-colors ${
-                                    attendance[date]?.[s.id] === status
+                                    isLoadingExistingData
+                                      ? "bg-gray-300 text-gray-400 cursor-not-allowed opacity-50"
+                                      : attendance[date]?.[s.id] === status
                                       ? `${statusColor[status]} text-white`
                                       : isExisting
                                       ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                       : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
                                   }`}
-                                  disabled={isExisting}
+                                  disabled={isExisting || isLoadingExistingData}
                                 >
                                   {status}
                                 </button>
@@ -1910,15 +1946,8 @@ const MonthlyRecapTab: React.FC<{
       // Principal signature and text
       if (schoolData.ttdKepsek) {
         try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 150; // Sesuaikan ukuran canvas (lebar lebih besar untuk tanda tangan panjang)
-          canvas.height = 50; // Sesuaikan ukuran canvas (tinggi cukup untuk garis tanda tangan)
-          const ctx = canvas.getContext("2d");
-          const v = await Canvg.from(ctx, schoolData.ttdKepsek); // schoolData.ttdKepsek adalah base64 SVG
-          v.start();
-          const pngData = canvas.toDataURL("image/png");
           doc.addImage(
-            pngData,
+            schoolData.ttdKepsek,
             "PNG",
             leftColumnX + 10,
             currentY - 3,
@@ -1981,15 +2010,8 @@ const MonthlyRecapTab: React.FC<{
       // Teacher signature and text
       if (schoolData.ttdGuru) {
         try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 150; // Sesuaikan ukuran canvas
-          canvas.height = 50;
-          const ctx = canvas.getContext("2d");
-          const v = await Canvg.from(ctx, schoolData.ttdGuru); // schoolData.ttdGuru adalah base64 SVG
-          v.start();
-          const pngData = canvas.toDataURL("image/png");
           doc.addImage(
-            pngData,
+            schoolData.ttdGuru,
             "PNG",
             rightColumnX + 10,
             currentY - 5,
@@ -2619,24 +2641,12 @@ const AttendanceHistoryTab: React.FC<{
         !record.status.toString().includes("FORMULA") &&
         ["Hadir", "Izin", "Sakit", "Alpha"].includes(record.status.toString());
 
-      // Tambahkan validasi untuk kolom duplikat: hanya ambil jika nilai eksak "-", dan bukan formula/error
-      const hasValidDuplikat =
-        record.duplikat &&
-        record.duplikat.toString().trim() === "-" && // Hanya ambil jika "-"
-        !record.duplikat.toString().startsWith("=") &&
-        record.duplikat.toString() !== "#N/A" &&
-        record.duplikat.toString() !== "#REF!" &&
-        record.duplikat.toString() !== "#VALUE!" &&
-        record.duplikat.toString() !== "#ERROR!" &&
-        !record.duplikat.toString().includes("FORMULA");
-
       return (
         hasValidTanggal &&
         hasValidNama &&
         hasValidNisn &&
         hasValidKelas &&
-        hasValidStatus &&
-        hasValidDuplikat // Tambahkan ini untuk memfilter berdasarkan duplikat = "-"
+        hasValidStatus
       );
     });
   };
@@ -3350,15 +3360,8 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
       // Principal signature and text
       if (schoolData.ttdKepsek) {
         try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 150; // Sesuaikan ukuran canvas (lebar lebih besar untuk tanda tangan panjang)
-          canvas.height = 50; // Sesuaikan ukuran canvas (tinggi cukup untuk garis tanda tangan)
-          const ctx = canvas.getContext("2d");
-          const v = await Canvg.from(ctx, schoolData.ttdKepsek); // schoolData.ttdKepsek adalah base64 SVG
-          v.start();
-          const pngData = canvas.toDataURL("image/png");
           doc.addImage(
-            pngData,
+            schoolData.ttdKepsek,
             "PNG",
             leftColumnX + 10,
             currentY - 3,
@@ -3421,15 +3424,8 @@ const SemesterRecapTab: React.FC<{ uniqueClasses: string[] }> = ({
       // Teacher signature and text
       if (schoolData.ttdGuru) {
         try {
-          const canvas = document.createElement("canvas");
-          canvas.width = 150; // Sesuaikan ukuran canvas
-          canvas.height = 50;
-          const ctx = canvas.getContext("2d");
-          const v = await Canvg.from(ctx, schoolData.ttdGuru); // schoolData.ttdGuru adalah base64 SVG
-          v.start();
-          const pngData = canvas.toDataURL("image/png");
           doc.addImage(
-            pngData,
+            schoolData.ttdGuru,
             "PNG",
             rightColumnX + 10,
             currentY - 5,
@@ -3989,6 +3985,7 @@ const StudentAttendanceApp: React.FC = () => {
     | "graph"
     | "history"
     | "semesterRecap"
+    | "daftarHadir"
     | "clearData"
   >("studentData");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -4081,6 +4078,7 @@ const StudentAttendanceApp: React.FC = () => {
           { tab: "semesterRecap", label: "📚 Rekap Semester" },
           { tab: "graph", label: "📈 Grafik" },
           { tab: "history", label: "📜 Riwayat Absen" },
+          { tab: "daftarHadir", label: "📋 Daftar Hadir" },
           { tab: "clearData", label: "🗑️ Hapus Data" },
         ].map(({ tab, label }) => (
           <button
@@ -4176,9 +4174,1220 @@ const StudentAttendanceApp: React.FC = () => {
           {activeTab === "semesterRecap" && (
             <SemesterRecapTab uniqueClasses={uniqueClasses} />
           )}
+          {activeTab === "daftarHadir" && (
+            <DaftarHadirTab students={students} uniqueClasses={uniqueClasses} />
+          )}
           {activeTab === "clearData" && <ClearDataTab />}
         </div>
       </main>
+    </div>
+  );
+};
+
+const DaftarHadirTab: React.FC<{
+  students: Student[];
+  uniqueClasses: string[];
+}> = ({ students, uniqueClasses }) => {
+  const [attendanceData, setAttendanceData] = useState<AttendanceHistory[]>([]);
+  const [selectedKelas, setSelectedKelas] = useState<string>("Semua");
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    new Date().getMonth() + 1
+  ); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear()
+  );
+  const [loading, setLoading] = useState<boolean>(true);
+  const [editedRecords, setEditedRecords] = useState<
+    Record<string, EditedRecord>
+  >({});
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [deletingStudentId, setDeletingStudentId] = useState<string | null>(
+    null
+  );
+  const [schoolData, setSchoolData] = useState<SchoolData | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [placeName, setPlaceName] = useState<string>("Makassar");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [showModal, setShowModal] = useState<boolean>(false);
+
+  const months = [
+    { value: 1, label: "Januari" },
+    { value: 2, label: "Februari" },
+    { value: 3, label: "Maret" },
+    { value: 4, label: "April" },
+    { value: 5, label: "Mei" },
+    { value: 6, label: "Juni" },
+    { value: 7, label: "Juli" },
+    { value: 8, label: "Agustus" },
+    { value: 9, label: "September" },
+    { value: 10, label: "Oktober" },
+    { value: 11, label: "November" },
+    { value: 12, label: "Desember" },
+  ];
+
+  const years = Array.from({ length: 11 }, (_, i) => 2020 + i); // 2020-2030, sesuaikan jika perlu
+
+  const fetchAttendanceData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${endpoint}?action=attendanceHistory`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      if (data.success) {
+        console.log("=== RAW DATA FROM SERVER ===");
+        console.log("Total records:", data.data.length);
+        // Log sample data (tetap jika ingin debug)
+        if (data.data.length > 0) {
+          console.log("Sample records (first 5):");
+          data.data.slice(0, 5).forEach((record: any, index: number) => {
+            console.log(`Record ${index}:`, {
+              tanggal: record.tanggal,
+              nama: record.nama,
+              kelas: record.kelas,
+              nisn: record.nisn,
+              status: record.status,
+            });
+          });
+        }
+        const validData = filterValidAttendance(data.data || []);
+        console.log("Valid records after filter:", validData.length);
+        // Cek unique NISN dan dates (tetap jika ingin debug)
+        const uniqueNISN = new Set(
+          validData.map((r) => String(r.nisn || "").trim())
+        );
+        console.log("Unique NISN in attendance data:", Array.from(uniqueNISN));
+        const uniqueDates = new Set(validData.map((r) => r.tanggal));
+        console.log("Unique dates:", Array.from(uniqueDates).sort());
+        setAttendanceData(validData);
+      } else {
+        alert("❌ Gagal memuat data absensi: " + data.message);
+        setAttendanceData([]);
+      }
+    } catch (error) {
+      console.error("Error fetch:", error);
+      alert("❌ Gagal memuat data absensi. Cek console untuk detail.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetch(`${endpoint}?action=schoolData`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success && data.data && data.data.length > 0) {
+          setSchoolData(data.data[0]);
+        } else {
+          setSchoolData(null);
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching school data:", error);
+        alert("❌ Gagal memuat data sekolah. Cek console untuk detail.");
+      });
+  }, []); // Fetch sekali saat mount
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${endpoint}?action=attendanceHistory`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          console.log("=== RAW DATA FROM SERVER ===");
+          console.log("Total records:", data.data.length);
+
+          // Log sample data
+          if (data.data.length > 0) {
+            console.log("Sample records (first 5):");
+            data.data.slice(0, 5).forEach((record: any, index: number) => {
+              console.log(`Record ${index}:`, {
+                tanggal: record.tanggal,
+                nama: record.nama,
+                kelas: record.kelas,
+                nisn: record.nisn,
+                status: record.status,
+              });
+            });
+          }
+
+          // Filter data yang valid
+          const validData = filterValidAttendance(data.data || []);
+          console.log("Valid records after filter:", validData.length);
+
+          // Cek unique NISN dalam data
+          const uniqueNISN = new Set(
+            validData.map((r) => String(r.nisn || "").trim())
+          );
+          console.log(
+            "Unique NISN in attendance data:",
+            Array.from(uniqueNISN)
+          );
+
+          // Cek unique tanggal
+          const uniqueDates = new Set(validData.map((r) => r.tanggal));
+          console.log("Unique dates:", Array.from(uniqueDates).sort());
+
+          setAttendanceData(validData);
+        } else {
+          alert("❌ Gagal memuat data absensi: " + data.message);
+          setAttendanceData([]);
+        }
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error fetch:", error);
+        alert("❌ Gagal memuat data absensi. Cek console untuk detail.");
+        setLoading(false);
+      });
+  }, []);
+
+  // Filter siswa berdasarkan kelas
+  const filteredStudents = React.useMemo(() => {
+    const result =
+      selectedKelas === "Semua"
+        ? students
+        : students.filter(
+            (student) => String(student.kelas).trim() === selectedKelas
+          );
+
+    console.log("=== FILTERED STUDENTS ===");
+    console.log("Selected Kelas:", selectedKelas);
+    console.log("Total students:", result.length);
+    if (result.length > 0) {
+      console.log("Sample students (first 3):");
+      result.slice(0, 3).forEach((s, i) => {
+        console.log(`Student ${i}:`, {
+          name: s.name,
+          nisn: s.nisn,
+          kelas: s.kelas,
+        });
+      });
+    }
+
+    return result;
+  }, [students, selectedKelas]);
+
+  // Hitung jumlah hari di bulan
+  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+
+  // Filter data absensi yang valid (tidak ada formula atau error)
+  const filterValidAttendance = (
+    data: AttendanceHistory[]
+  ): AttendanceHistory[] => {
+    return data.filter((record) => {
+      const hasValidTanggal =
+        record.tanggal &&
+        !record.tanggal.toString().startsWith("=") &&
+        /^\d{2}\/\d{2}\/\d{4}$/.test(record.tanggal.toString());
+
+      const hasValidNama =
+        record.nama &&
+        !record.nama.toString().startsWith("=") &&
+        record.nama.toString().trim() !== "";
+
+      const hasValidNisn =
+        record.nisn &&
+        !record.nisn.toString().startsWith("=") &&
+        record.nisn.toString().trim() !== "";
+
+      const hasValidStatus =
+        record.status &&
+        ["Hadir", "Izin", "Sakit", "Alpha"].includes(record.status.toString());
+
+      return hasValidTanggal && hasValidNama && hasValidNisn && hasValidStatus;
+    });
+  };
+
+  const getAttendanceForStudent = (student: Student) => {
+    const studentAttendance: { [day: number]: string } = {};
+    let countS = 0,
+      countI = 0,
+      countA = 0;
+
+    console.log(`\n=== Processing ${student.name} (NISN: ${student.nisn}) ===`);
+
+    // Normalisasi NISN siswa
+    const studentNisn = String(student.nisn || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .toUpperCase();
+    const studentNama = String(student.name || "")
+      .trim()
+      .toLowerCase();
+
+    console.log("Normalized Student NISN:", studentNisn);
+    console.log("Normalized Student Name:", studentNama);
+
+    // LANGKAH 1: Ambil data dari attendanceData
+    attendanceData.forEach((record) => {
+      // Normalisasi data record
+      const recordNisn = String(record.nisn || "")
+        .trim()
+        .replace(/\s+/g, "")
+        .toUpperCase();
+      const recordNama = String(record.nama || "")
+        .trim()
+        .toLowerCase();
+
+      // Pencocokan lebih fleksibel
+      const nisnMatch = studentNisn && recordNisn && studentNisn === recordNisn;
+      const nameMatch = studentNama && recordNama && studentNama === recordNama;
+      const isMatch = nisnMatch || nameMatch;
+
+      if (isMatch) {
+        // Parse tanggal
+        const dateParts = record.tanggal.split("/");
+
+        if (dateParts.length === 3) {
+          const day = parseInt(dateParts[0], 10);
+          const month = parseInt(dateParts[1], 10);
+          const year = parseInt(dateParts[2], 10);
+
+          if (month === selectedMonth && year === selectedYear && !isNaN(day)) {
+            let code = "";
+            switch (record.status) {
+              case "Hadir":
+                code = "H";
+                break;
+              case "Izin":
+                code = "I";
+                break;
+              case "Sakit":
+                code = "S";
+                break;
+              case "Alpha":
+                code = "A";
+                break;
+            }
+
+            if (code) {
+              studentAttendance[day] = code;
+              console.log(`Found attendance: Day ${day} = ${code}`);
+            }
+          }
+        }
+      }
+    });
+
+    // LANGKAH 2: Override dengan editedRecords (INI YANG PENTING!)
+    Object.entries(editedRecords).forEach(([key, record]) => {
+      // Parse key format: "studentId_day"
+      const keyParts = key.split("_");
+      if (keyParts.length >= 2 && keyParts[0] === student.id) {
+        const day = parseInt(keyParts[1], 10);
+
+        // Parse date dari record
+        const dateParts = record.date.split("/");
+        if (dateParts.length === 3) {
+          const month = parseInt(dateParts[1], 10);
+          const year = parseInt(dateParts[2], 10);
+
+          if (month === selectedMonth && year === selectedYear && !isNaN(day)) {
+            let code = "";
+            switch (record.status) {
+              case "Hadir":
+                code = "H";
+                break;
+              case "Izin":
+                code = "I";
+                break;
+              case "Sakit":
+                code = "S";
+                break;
+              case "Alpha":
+                code = "A";
+                break;
+            }
+
+            if (code) {
+              studentAttendance[day] = code;
+              console.log(
+                `Applied edit: Day ${day} = ${code} (from editedRecords)`
+              );
+            } else if (record.status === "") {
+              // Jika status kosong, hapus entry
+              delete studentAttendance[day];
+              console.log(`Removed attendance: Day ${day}`);
+            }
+          }
+        }
+      }
+    });
+
+    // LANGKAH 3: Hitung counts dari studentAttendance yang sudah final
+    countS = Object.values(studentAttendance).filter((v) => v === "S").length;
+    countI = Object.values(studentAttendance).filter((v) => v === "I").length;
+    countA = Object.values(studentAttendance).filter((v) => v === "A").length;
+
+    console.log("Final attendance:", studentAttendance);
+    console.log("Counts - S:", countS, "I:", countI, "A:", countA);
+
+    return {
+      attendance: studentAttendance,
+      counts: { S: countS, I: countI, A: countA },
+    };
+  };
+
+  const handleStatusChange = (
+    student: Student,
+    day: number,
+    newStatus: AttendanceStatus | ""
+  ) => {
+    console.log(`\n=== Status Change ===`);
+    console.log("Student:", student.name);
+    console.log("Day:", day);
+    console.log("New Status:", newStatus);
+    console.log("Current editedRecords:", editedRecords);
+
+    const key = `${student.id}_${day}`;
+    const dateStr = `${String(day).padStart(2, "0")}/${String(
+      selectedMonth
+    ).padStart(2, "0")}/${selectedYear}`;
+
+    if (newStatus === "") {
+      // Cek apakah ada data asli dari attendanceData
+      const hasOriginalData = attendanceData.some((record) => {
+        const studentNisn = String(student.nisn || "")
+          .trim()
+          .replace(/\s+/g, "")
+          .toUpperCase();
+        const studentNama = String(student.name || "")
+          .trim()
+          .toLowerCase();
+        const recordNisn = String(record.nisn || "")
+          .trim()
+          .replace(/\s+/g, "")
+          .toUpperCase();
+        const recordNama = String(record.nama || "")
+          .trim()
+          .toLowerCase();
+
+        const isMatch =
+          (studentNisn && recordNisn && studentNisn === recordNisn) ||
+          (studentNama && recordNama && studentNama === recordNama);
+
+        if (isMatch) {
+          const dateParts = record.tanggal.split("/");
+          if (dateParts.length === 3) {
+            const recordDay = parseInt(dateParts[0], 10);
+            const recordMonth = parseInt(dateParts[1], 10);
+            const recordYear = parseInt(dateParts[2], 10);
+            return (
+              recordDay === day &&
+              recordMonth === selectedMonth &&
+              recordYear === selectedYear
+            );
+          }
+        }
+        return false;
+      });
+
+      if (hasOriginalData) {
+        // Jika ada data asli, tandai untuk dihapus dengan status kosong
+        setEditedRecords((prev) => ({
+          ...prev,
+          [key]: {
+            date: dateStr,
+            nisn: String(student.nisn || ""),
+            status: "", // Status kosong = hapus
+          },
+        }));
+      } else {
+        // Jika tidak ada data asli, hapus dari editedRecords
+        setEditedRecords((prev) => {
+          const newRecords = { ...prev };
+          delete newRecords[key];
+          console.log("Removed from editedRecords. New state:", newRecords);
+          return newRecords;
+        });
+      }
+    } else {
+      // Tambah/update di editedRecords
+      const newRecord = {
+        date: dateStr,
+        nisn: String(student.nisn || ""),
+        status: newStatus,
+      };
+
+      setEditedRecords((prev) => {
+        const newRecords = {
+          ...prev,
+          [key]: newRecord,
+        };
+        console.log("Updated editedRecords. New state:", newRecords);
+        return newRecords;
+      });
+    }
+  };
+
+  const handleSaveChanges = () => {
+    if (Object.keys(editedRecords).length === 0) {
+      alert("⚠️ Tidak ada perubahan untuk disimpan.");
+      return;
+    }
+
+    setIsSaving(true);
+    const updates = Object.values(editedRecords).map((record) => ({
+      tanggal: record.date,
+      nisn: record.nisn,
+      status: record.status,
+    }));
+
+    fetch(endpoint, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "bulkUpdateAttendance",
+        updates,
+      }),
+    })
+      .then(() => {
+        alert("✅ Perubahan berhasil disimpan!");
+        setEditedRecords({});
+        // Update data absensi secara dinamis tanpa reload halaman
+        fetchAttendanceData();
+      })
+      .catch(() => alert("❌ Gagal menyimpan perubahan."))
+      .finally(() => setIsSaving(false));
+  };
+
+  const handleDeleteStudentAttendance = async (student: Student) => {
+    const confirmMessage = `⚠️ PERINGATAN!\n\nAnda akan menghapus SEMUA riwayat absensi untuk:\n\nNama: ${
+      student.name
+    }\nNISN: ${student.nisn}\nKelas: ${
+      student.kelas
+    }\n\nData yang akan dihapus:\n- Semua riwayat kehadiran di bulan ${
+      months.find((m) => m.value === selectedMonth)?.label
+    } ${selectedYear}\n- Data di sheet "Absensi" di Google Sheets\n\nTindakan ini TIDAK DAPAT DIBATALKAN!\n\nApakah Anda yakin?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeletingStudentId(student.id);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "deleteStudentAttendanceByName",
+          nama: student.name,
+          bulan: selectedMonth,
+          tahun: selectedYear,
+        }),
+      });
+
+      alert(`✅ Riwayat absensi ${student.name} berhasil dihapus!`);
+
+      // Hapus data dari state lokal
+      setAttendanceData((prev) =>
+        prev.filter((record) => record.nama !== student.name)
+      );
+
+      // Hapus editedRecords untuk siswa ini
+      setEditedRecords((prev) => {
+        const newRecords = { ...prev };
+        Object.keys(newRecords).forEach((key) => {
+          if (key.startsWith(`${student.id}_`)) {
+            delete newRecords[key];
+          }
+        });
+        return newRecords;
+      });
+
+      // Refresh data dari server
+      fetchAttendanceData();
+    } catch (error) {
+      console.error("Error deleting student attendance:", error);
+      alert("❌ Gagal menghapus riwayat absensi. Silakan coba lagi.");
+    } finally {
+      setDeletingStudentId(null);
+    }
+  };
+
+  const downloadPDF = async () => {
+    const doc = new jsPDF("landscape"); // Landscape untuk muat banyak kolom
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    const lineSpacing = 5;
+    let currentY = margin;
+
+    doc.setFont("Times", "roman");
+
+    // Title
+    const monthLabel =
+      months.find((m) => m.value === selectedMonth)?.label || "";
+    const title = `DAFTAR HADIR SISWA KELAS ${selectedKelas} ${monthLabel.toUpperCase()} ${selectedYear}`;
+    doc.setFontSize(14);
+    doc.setFont("Times", "bold");
+    doc.text(title, pageWidth / 2, currentY, { align: "center" });
+    currentY += 10;
+
+    // Headers: Multi-row dengan rowspan untuk kolom awal dan hari, colspan untuk JUMLAH
+    const headers = [
+      [
+        { content: "No", rowSpan: 2 },
+        { content: "No INDUK", rowSpan: 2 },
+        { content: "NAMA", rowSpan: 2 },
+        ...Array.from({ length: daysInMonth }, (_, i) => ({
+          content: (i + 1).toString(),
+          rowSpan: 2,
+        })),
+        {
+          content: "JUMLAH",
+          colSpan: 3,
+          styles: { halign: "center" as const },
+        }, // <- TAMBAHKAN 'as const'
+      ],
+      ["S", "I", "A"],
+    ];
+
+    // Body data
+    const body = filteredStudents.map((student, index) => {
+      const { attendance, counts } = getAttendanceForStudent(student);
+      return [
+        index + 1,
+        student.nisn || "N/A",
+        student.name || "N/A",
+        ...Array.from(
+          { length: daysInMonth },
+          (_, day) => attendance[day + 1] || "-"
+        ),
+        counts.S,
+        counts.I,
+        counts.A,
+      ];
+    });
+
+    // Render tabel
+    autoTable(doc, {
+      head: headers,
+      body: body,
+      startY: currentY,
+      theme: "grid",
+      styles: {
+        font: "Times",
+        fontSize: 6,
+        cellPadding: 1,
+        halign: "center",
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: [255, 255, 0],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        fontSize: 6,
+        halign: "center", // ← TAMBAHKAN INI untuk header rata tengah
+        valign: "middle", // ← TAMBAHKAN INI untuk header rata tengah vertikal
+      },
+      alternateRowStyles: { fillColor: [240, 240, 240] },
+      columnStyles: {
+        0: { cellWidth: 7, halign: "center" }, // No ABS
+        1: { cellWidth: 16, halign: "center" }, // No INDUK
+        2: { cellWidth: 40, halign: "left" }, // NAMA
+        // Kolom hari: lebar kecil (5) - MENGGUNAKAN Object.assign
+        ...Object.assign(
+          {},
+          ...Array.from({ length: daysInMonth }, (_, i) => ({
+            [i + 3]: { cellWidth: 6, halign: "center" },
+          }))
+        ),
+        // S, I, A: lebar 10
+        [3 + daysInMonth]: { cellWidth: 7, halign: "center" },
+        [4 + daysInMonth]: { cellWidth: 7, halign: "center" },
+        [5 + daysInMonth]: { cellWidth: 7, halign: "center" },
+      },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Footer: School data, place, date, signatures (tetap sama)
+    if (schoolData) {
+      doc.setFontSize(10);
+      doc.setFont("Times", "roman");
+
+      const formattedDate = new Date(selectedDate).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      const placeDateText = `${placeName}, ${formattedDate}`;
+      const rightColumnX = pageWidth - margin - 50;
+      doc.text(placeDateText, rightColumnX + 25, currentY - 1, {
+        align: "center",
+      });
+      currentY += 5;
+
+      const signatureWidth = 30;
+      const signatureHeight = 20;
+      const leftColumnX = margin;
+
+      // Principal signature
+      if (schoolData.ttdKepsek) {
+        try {
+          doc.addImage(
+            schoolData.ttdKepsek,
+            "PNG",
+            leftColumnX + 10,
+            currentY - 3,
+            signatureWidth,
+            signatureHeight
+          );
+        } catch (error) {
+          console.error("Error rendering Kepsek signature:", error);
+          doc.text(
+            "Gagal render tanda tangan Kepala Sekolah.",
+            leftColumnX + 10,
+            currentY - 3 + 10
+          );
+        }
+      }
+
+      doc.text("Kepala Sekolah,", leftColumnX + 25, currentY - 2, {
+        align: "center",
+      });
+      doc.text("", leftColumnX + 25, currentY + lineSpacing, {
+        align: "center",
+      });
+      doc.text("", leftColumnX + 25, currentY + 2 * lineSpacing, {
+        align: "center",
+      });
+
+      const principalName = schoolData.namaKepsek || "N/A";
+      doc.setFont("Times", "bold");
+      doc.text(principalName, leftColumnX + 25, currentY + 3.5 * lineSpacing, {
+        align: "center",
+      });
+
+      const textWidth = doc.getTextWidth(principalName);
+      const textX = leftColumnX + 25 - textWidth / 2;
+      doc.line(
+        textX,
+        currentY + 3.5 * lineSpacing + 1,
+        textX + textWidth,
+        currentY + 3.5 * lineSpacing + 1
+      );
+
+      doc.setFont("Times", "roman");
+      doc.text(
+        `NIP. ${schoolData.nipKepsek || "N/A"}`,
+        leftColumnX + 25,
+        currentY + 4.5 * lineSpacing,
+        { align: "center" }
+      );
+
+      // Teacher signature
+      if (schoolData.ttdGuru) {
+        try {
+          doc.addImage(
+            schoolData.ttdGuru,
+            "PNG",
+            rightColumnX + 10,
+            currentY - 5,
+            signatureWidth,
+            signatureHeight
+          );
+        } catch (error) {
+          console.error("Error rendering Guru signature:", error);
+          doc.text(
+            "Gagal render tanda tangan Guru.",
+            rightColumnX + 10,
+            currentY - 5 + 10
+          );
+        }
+      }
+
+      doc.text("Guru Kelas,", rightColumnX + 25, currentY - 2, {
+        align: "center",
+      });
+      doc.text("", rightColumnX + 25, currentY + lineSpacing, {
+        align: "center",
+      });
+      doc.text("", rightColumnX + 25, currentY + 2 * lineSpacing, {
+        align: "center",
+      });
+
+      const teacherName = schoolData.namaGuru || "N/A";
+      doc.setFont("Times", "bold");
+      doc.text(teacherName, rightColumnX + 25, currentY + 3.5 * lineSpacing, {
+        align: "center",
+      });
+
+      const teacherTextWidth = doc.getTextWidth(teacherName);
+      const teacherTextX = rightColumnX + 25 - teacherTextWidth / 2;
+      doc.line(
+        teacherTextX,
+        currentY + 3.5 * lineSpacing + 1,
+        teacherTextX + teacherTextWidth,
+        currentY + 3.5 * lineSpacing + 1
+      );
+
+      doc.setFont("Times", "roman");
+      doc.text(
+        `NIP. ${schoolData.nipGuru || "N/A"}`,
+        rightColumnX + 25,
+        currentY + 4.5 * lineSpacing,
+        { align: "center" }
+      );
+    } else {
+      doc.setFontSize(10);
+      doc.text("Data sekolah tidak tersedia.", margin, currentY);
+    }
+
+    const date = new Date()
+      .toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(/ /g, "_")
+      .replace(/:/g, "-");
+    const fileName = `Daftar_Hadir_${selectedKelas}_${monthLabel}_${selectedYear}_${date}.pdf`;
+    doc.save(fileName);
+  };
+
+  const handleNameClick = (student: Student) => {
+    setSelectedStudent(student);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedStudent(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Memuat data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto" style={{ paddingBottom: "70px" }}>
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-center text-blue-700 mb-6">
+          📋 Daftar Hadir Siswa
+        </h2>
+        <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-2">Filter Kelas</p>
+            <select
+              value={selectedKelas}
+              onChange={(e) => setSelectedKelas(e.target.value)}
+              className="border border-gray-300 rounded-lg px-1 py-0.5 shadow-sm bg-white min-w-32"
+            >
+              {uniqueClasses.map((kelas) => (
+                <option key={kelas} value={kelas}>
+                  {kelas}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-2">Bulan</p>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border border-gray-300 rounded-lg px-1 py-0.5 shadow-sm bg-white min-w-32"
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-2">Tahun</p>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="border border-gray-300 rounded-lg px-1 py-0.5 shadow-sm bg-white min-w-32"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Separator line and PDF settings section */}
+        <div className="border-t border-gray-200 pt-4 mb-6">
+          <p className="text-center text-sm font-medium text-gray-700 mb-4">
+            Pengaturan Tanggal & Nama Tempat <br /> untuk Daftar Hadir pada File
+            PDF
+          </p>
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-2">Pilih Tanggal</p>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-1 py-0.5 shadow-sm bg-white min-w-32"
+              />
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-2">Nama Tempat</p>
+              <input
+                type="text"
+                value={placeName}
+                onChange={(e) => setPlaceName(e.target.value)}
+                placeholder="Masukkan nama tempat"
+                className="border border-gray-300 rounded-lg px-1 py-0.5 shadow-sm bg-white min-w-32"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-auto relative" style={{ maxHeight: "70vh" }}>
+          <style>{`
+  .attendance-table thead tr:first-child th {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #f3f4f6;
+  }
+  
+  .attendance-table thead tr:last-child th {
+    position: sticky;
+    top: 33px;
+    z-index: 30;
+    background: #f3f4f6;
+  }
+  
+  .attendance-table th.freeze-no,
+  .attendance-table td.freeze-no {
+    position: sticky;
+    left: 0;
+    z-index: 25;
+    background: #f3f4f6 !important;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  }
+  
+  .attendance-table td.freeze-no {
+    background: white !important;
+  }
+  
+  .attendance-table tbody tr:nth-child(even) td.freeze-no {
+    background: #f9fafb !important;
+  }
+  
+  .attendance-table th.freeze-nama,
+  .attendance-table td.freeze-nama {
+    position: sticky;
+    left: 30px;
+    z-index: 25;
+    background: #f3f4f6 !important;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    min-width: 100px;
+  }
+  
+  .attendance-table td.freeze-nama {
+    background: white !important;
+  }
+  
+  .attendance-table td.freeze-nama:hover {
+    background: #dbeafe !important;
+  }
+  
+  .attendance-table tbody tr:nth-child(even) td.freeze-nama {
+    background: #f9fafb !important;
+  }
+  
+  .attendance-table tbody tr:nth-child(even) td.freeze-nama:hover {
+    background: #dbeafe !important;
+  }
+  
+  .attendance-table thead tr:first-child th.freeze-no,
+  .attendance-table thead tr:last-child th.freeze-no {
+    z-index: 40;
+    background: #f3f4f6 !important;
+  }
+  
+  .attendance-table thead tr:first-child th.freeze-nama,
+  .attendance-table thead tr:last-child th.freeze-nama {
+    z-index: 40;
+    background: #f3f4f6 !important;
+  }
+`}</style>
+
+          <table className="attendance-table min-w-full border-collapse border border-gray-200">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="freeze-no border px-2 py-1 text-sm">No</th>
+                <th className="freeze-nama border px-2 py-1 text-sm">NAMA</th>
+                {Array.from({ length: daysInMonth }, (_, i) => (
+                  <th key={i} className="border px-1 py-1 text-sm">
+                    {String(i + 1).padStart(2, "0")}
+                  </th>
+                ))}
+                <th className="border px-2 py-1 text-sm" colSpan={3}>
+                  JUMLAH
+                </th>
+              </tr>
+              <tr className="bg-gray-100">
+                <th className="freeze-no border px-2 py-1 text-sm"></th>
+                <th className="freeze-nama border px-2 py-1 text-sm"></th>
+                {Array.from({ length: daysInMonth }, (_, i) => (
+                  <th key={i} className="border px-1 py-1 text-sm"></th>
+                ))}
+                <th className="border px-2 py-1 text-sm">S</th>
+                <th className="border px-2 py-1 text-sm">I</th>
+                <th className="border px-2 py-1 text-sm">A</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.map((student, index) => {
+                const { attendance, counts } = getAttendanceForStudent(student);
+
+                return (
+                  <tr
+                    key={student.id}
+                    className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  >
+                    <td className="freeze-no border px-2 py-1 text-xs text-center">
+                      {index + 1}
+                    </td>
+                    <td
+                      className="freeze-nama border px-2 py-1 text-xs"
+                      onClick={() => handleNameClick(student)}
+                      title="Klik untuk melihat detail"
+                    >
+                      {student.name || "N/A"}
+                    </td>
+                    {Array.from({ length: daysInMonth }, (_, day) => {
+                      const currentValue = attendance[day + 1] || "";
+                      const key = `${student.id}_${day + 1}`;
+                      const isEdited = editedRecords[key] !== undefined;
+
+                      const getFullStatus = (
+                        code: string
+                      ): AttendanceStatus | "" => {
+                        switch (code) {
+                          case "H":
+                            return "Hadir";
+                          case "I":
+                            return "Izin";
+                          case "S":
+                            return "Sakit";
+                          case "A":
+                            return "Alpha";
+                          default:
+                            return "";
+                        }
+                      };
+
+                      const getColorClass = (code: string) => {
+                        switch (code) {
+                          case "H":
+                            return "text-green-600 hover:bg-green-50";
+                          case "I":
+                            return "text-yellow-600 hover:bg-yellow-50";
+                          case "S":
+                            return "text-blue-600 hover:bg-blue-50";
+                          case "A":
+                            return "text-red-600 hover:bg-red-50";
+                          default:
+                            return "text-gray-400 hover:bg-gray-50";
+                        }
+                      };
+
+                      return (
+                        <td
+                          key={day}
+                          className={`border px-1 py-1 text-center text-xs ${
+                            isEdited ? "bg-yellow-100" : ""
+                          }`}
+                        >
+                          <select
+                            value={
+                              editedRecords[key]?.status ||
+                              getFullStatus(currentValue)
+                            }
+                            onChange={(e) => {
+                              const newStatus = e.target.value as
+                                | AttendanceStatus
+                                | "";
+                              handleStatusChange(student, day + 1, newStatus);
+                            }}
+                            className={`w-full text-center text-xs font-bold cursor-pointer appearance-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-1 py-0.5 transition-colors ${getColorClass(
+                              editedRecords[key]?.status
+                                ? editedRecords[key].status === "Hadir"
+                                  ? "H"
+                                  : editedRecords[key].status === "Izin"
+                                  ? "I"
+                                  : editedRecords[key].status === "Sakit"
+                                  ? "S"
+                                  : editedRecords[key].status === "Alpha"
+                                  ? "A"
+                                  : ""
+                                : currentValue
+                            )}`}
+                            disabled={isSaving}
+                            style={{
+                              textAlign: "center",
+                              textAlignLast: "center",
+                              WebkitAppearance: "none",
+                              MozAppearance: "none",
+                            }}
+                          >
+                            <option value="">-</option>
+                            <option value="Hadir" style={{ color: "#059669" }}>
+                              H - Hadir
+                            </option>
+                            <option value="Izin" style={{ color: "#D97706" }}>
+                              I - Izin
+                            </option>
+                            <option value="Sakit" style={{ color: "#2563EB" }}>
+                              S - Sakit
+                            </option>
+                            <option value="Alpha" style={{ color: "#DC2626" }}>
+                              A - Alpha
+                            </option>
+                          </select>
+                        </td>
+                      );
+                    })}
+                    <td className="border px-2 py-1 text-center text-xs">
+                      {counts.S}
+                    </td>
+                    <td className="border px-2 py-1 text-center text-xs">
+                      {counts.I}
+                    </td>
+                    <td className="border px-2 py-1 text-center text-xs">
+                      {counts.A}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {Object.keys(editedRecords).length > 0 && (
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={handleSaveChanges}
+                disabled={isSaving}
+                className={`px-6 py-2 rounded-lg font-medium text-white ${
+                  isSaving
+                    ? "bg-blue-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {isSaving
+                  ? "⏳ Menyimpan..."
+                  : `💾 Simpan Perubahan (${
+                      Object.keys(editedRecords).length
+                    })`}
+              </button>
+              <button
+                onClick={() => setEditedRecords({})}
+                disabled={isSaving}
+                className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium"
+              >
+                ❌ Batal
+              </button>
+            </div>
+          )}
+          <div className="mt-6 flex justify-center gap-4">
+            {" "}
+            {/* mt-6 ini bisa disesuaikan jika terlalu jauh */}
+            <button
+              onClick={downloadPDF}
+              className="px-1 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              📄 Download PDF
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* Modal Detail Siswa */}
+      {showModal && selectedStudent && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Detail Siswa</h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex border-b pb-2">
+                <span className="font-semibold text-gray-600 w-24">NISN:</span>
+                <span className="text-gray-800">
+                  {selectedStudent.nisn || "N/A"}
+                </span>
+              </div>
+              <div className="flex border-b pb-2">
+                <span className="font-semibold text-gray-600 w-24">Nama:</span>
+                <span className="text-gray-800">
+                  {selectedStudent.name || "N/A"}
+                </span>
+              </div>
+              <div className="flex border-b pb-2">
+                <span className="font-semibold text-gray-600 w-24">Kelas:</span>
+                <span className="text-gray-800">
+                  {selectedStudent.kelas || "N/A"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  handleDeleteStudentAttendance(selectedStudent);
+                  closeModal();
+                }}
+                disabled={deletingStudentId === selectedStudent.id || isSaving}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  deletingStudentId === selectedStudent.id || isSaving
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-red-500 hover:bg-red-600 text-white"
+                }`}
+              >
+                {deletingStudentId === selectedStudent.id
+                  ? "⏳ Menghapus..."
+                  : "🗑️ Hapus Riwayat Absensi"}
+              </button>
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
